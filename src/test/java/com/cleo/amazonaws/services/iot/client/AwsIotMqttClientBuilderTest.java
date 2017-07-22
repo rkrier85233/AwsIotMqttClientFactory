@@ -49,7 +49,7 @@ public class AwsIotMqttClientBuilderTest {
 
     @Test
     public void activeMqClientTest() throws Exception {
-        // This test require a worthy MQTT broker running on localhost on port 61614.
+        // This test require a worthy MQTT broker running on localhost on port 61614, such as Apache ActiveMQ.
         final String endpoint = "ws://localhost:61614";
         final String clientId = UUID.randomUUID().toString();
         final AWSIotMqttClient client = AwsIotMqttClientBuilder.builder()
