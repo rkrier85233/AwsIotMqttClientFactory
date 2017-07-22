@@ -95,6 +95,8 @@ public class AwsIotMqttClientBuilderTest {
             Thread.sleep(100);
         }
         latch.await(10, TimeUnit.SECONDS);
+        client.unsubscribe(subscribeTopic);
+        client.disconnect();
 
         assertFalse(failed.get());
         assertTrue(messages.size() == numMessages);
