@@ -7,7 +7,6 @@ import com.amazonaws.services.iot.client.core.AwsIotRuntimeException;
 import com.amazonaws.services.iot.client.mqtt.AwsIotMqttConnection;
 
 import java.lang.reflect.Field;
-import java.util.regex.Pattern;
 
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
@@ -15,10 +14,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class AwsIotMqttClientBuilder {
 
-    private static final String EndpointPattern = "iot\\.([\\w-]+)\\.amazonaws\\.com";
+    // No instances allowed.
+    private AwsIotMqttClientBuilder() {
+    }
 
-    @Builder(builderMethodName = "newClient")
-    public static AWSIotMqttClient newAWSIotMqttClient(String clientEndpoint,
+    @Builder
+    private static AWSIotMqttClient newAWSIotMqttClient(String clientEndpoint,
                                                        String clientId,
                                                        String awsAccessKeyId,
                                                        String awsSecretAccessKey,
@@ -27,18 +28,19 @@ public class AwsIotMqttClientBuilder {
         final boolean awsIotEndpoint = !clientEndpoint.contains("://");
         final String clientEndpointToUse = awsIotEndpoint ? clientEndpoint : "foobar.iot.us-west-2.amazonaws.com";
 
-        AWSIotMqttClient client = new AWSIotMqttClient(clientEndpointToUse, clientId, awsAccessKeyId, awsSecretAccessKey, sessionToken);
+        final AWSIotMqttClient client = new AWSIotMqttClient(clientEndpointToUse, clientId, awsAccessKeyId, awsSecretAccessKey, sessionToken);
         if (!awsIotEndpoint) {
             log.info("Using direct websocket connection override.");
             try {
-                AwsIotMqttConnection connection = new AwsIotMqttConnection(client, null, clientEndpoint);
+                final AwsIotMqttConnection connection = new AwsIotMqttConnection(client, null, clientEndpoint);
                 Field field = AbstractAwsIotClient.class.getDeclaredField("connection");
                 field.setAccessible(true);
                 field.set(client, connection);
 
+                final AwsIotConnectionType connectionType = clientEndpoint.startsWith("wss") ? AwsIotConnectionType.MQTT_OVER_TLS : AwsIotConnectionType.MQTT_OVER_WEBSOCKET;
                 field = AbstractAwsIotClient.class.getDeclaredField("connectionType");
                 field.setAccessible(true);
-                field.set(client, AwsIotConnectionType.MQTT_OVER_TLS);
+                field.set(client, connectionType);
             } catch (Exception e) {
                 throw new AwsIotRuntimeException(e);
             }
