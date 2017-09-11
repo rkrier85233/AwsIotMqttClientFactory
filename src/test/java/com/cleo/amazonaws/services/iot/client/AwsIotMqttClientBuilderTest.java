@@ -8,9 +8,11 @@ import com.amazonaws.services.iot.client.AWSIotTopic;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 import com.amazonaws.services.securitytoken.model.Credentials;
 import com.amazonaws.services.securitytoken.model.GetSessionTokenResult;
+import com.github.markusbernhardt.proxy.ProxySearch;
 
 import org.junit.Test;
 
+import java.net.ProxySelector;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -20,7 +22,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class AwsIotMqttClientBuilderTest {
 
@@ -31,6 +32,11 @@ public class AwsIotMqttClientBuilderTest {
         final AWSSecurityTokenServiceClientBuilder builder = AWSSecurityTokenServiceClientBuilder.standard();
         builder.setCredentials(DefaultAWSCredentialsProviderChain.getInstance());
         builder.setRegion("us-west-2");
+
+        ProxySearch proxySearch = ProxySearch.getDefaultProxySearch();
+        ProxySelector proxySelector = proxySearch.getProxySelector();
+        ProxySelector.setDefault(proxySelector);
+
         final GetSessionTokenResult sessionTokenResult = builder.build().getSessionToken();
         final Credentials credentials = sessionTokenResult.getCredentials();
 
@@ -47,7 +53,7 @@ public class AwsIotMqttClientBuilderTest {
         runClientTest(client);
     }
 
-    @Test
+    //    @Test
     public void activeMqClientTest() throws Exception {
         // This test require a worthy MQTT broker running on localhost on port 61614, such as Apache ActiveMQ.
         final String endpoint = "ws://localhost:61614";
@@ -70,8 +76,13 @@ public class AwsIotMqttClientBuilderTest {
         final List<AWSIotMessage> messages = new ArrayList<>();
         final AtomicBoolean failed = new AtomicBoolean(false);
 
-        client.connect();
-        client.subscribe(new AWSIotTopic(subscribeTopic, AWSIotQos.QOS0) {
+        client.connect(60000, true);
+        client.subscribe(new AWSIotTopic(subscribeTopic, AWSIotQos.QOS1) {
+            @Override
+            public void onSuccess() {
+                super.onSuccess();
+            }
+
             @Override
             public void onFailure() {
                 super.onFailure();
@@ -87,11 +98,11 @@ public class AwsIotMqttClientBuilderTest {
                 messages.add(message);
                 latch.countDown();
             }
-        });
+        }, true);
 
         for (int i = 1; i <= numMessages; i++) {
             String publishTopic = "some/topic/message-" + i;
-            client.publish(new AWSIotMessage(publishTopic, AWSIotQos.QOS0, "This is message number: " + i));
+            client.publish(new AWSIotMessage(publishTopic, AWSIotQos.QOS1, "This is message number: " + i));
             Thread.sleep(100);
         }
         latch.await(10, TimeUnit.SECONDS);
@@ -99,7 +110,7 @@ public class AwsIotMqttClientBuilderTest {
         client.disconnect();
 
         assertFalse(failed.get());
-        assertTrue(messages.size() == numMessages);
+        assertEquals(numMessages, messages.size());
         for (int i = 1; i <= numMessages; i++) {
             AWSIotMessage message = messages.get(i - 1);
             assertEquals("some/topic/message-" + i, message.getTopic());

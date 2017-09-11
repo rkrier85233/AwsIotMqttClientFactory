@@ -29,21 +29,28 @@ public class AwsIotMqttClientBuilder {
         final String clientEndpointToUse = awsIotEndpoint ? clientEndpoint : "foobar.iot.us-west-2.amazonaws.com";
 
         final AWSIotMqttClient client = new AWSIotMqttClient(clientEndpointToUse, clientId, awsAccessKeyId, awsSecretAccessKey, sessionToken);
-        if (!awsIotEndpoint) {
-            log.info("Using direct websocket connection override.");
-            try {
-                final AwsIotMqttConnection connection = new AwsIotMqttConnection(client, null, clientEndpoint);
+        final AwsIotMqttConnection connection;
+        try {
+            if (awsIotEndpoint) {
                 Field field = AbstractAwsIotClient.class.getDeclaredField("connection");
                 field.setAccessible(true);
-                field.set(client, connection);
-
-                final AwsIotConnectionType connectionType = clientEndpoint.startsWith("wss") ? AwsIotConnectionType.MQTT_OVER_TLS : AwsIotConnectionType.MQTT_OVER_WEBSOCKET;
-                field = AbstractAwsIotClient.class.getDeclaredField("connectionType");
+                connection = (AwsIotMqttConnection) field.get(client);
+                field = AwsIotMqttConnection.class.getDeclaredField("socketFactory");
                 field.setAccessible(true);
-                field.set(client, connectionType);
-            } catch (Exception e) {
-                throw new AwsIotRuntimeException(e);
+                field.set(connection, new ProxyAwareSSLSocketFactory());
+            } else {
+                connection = new AwsIotMqttConnection(client, new ProxyAwareSSLSocketFactory(), clientEndpoint);
             }
+            Field field = AbstractAwsIotClient.class.getDeclaredField("connection");
+            field.setAccessible(true);
+            field.set(client, connection);
+
+            final AwsIotConnectionType connectionType = clientEndpoint.startsWith("wss") ? AwsIotConnectionType.MQTT_OVER_TLS : AwsIotConnectionType.MQTT_OVER_WEBSOCKET;
+            field = AbstractAwsIotClient.class.getDeclaredField("connectionType");
+            field.setAccessible(true);
+            field.set(client, connectionType);
+        } catch (Exception e) {
+            throw new AwsIotRuntimeException(e);
         }
 
         return client;
